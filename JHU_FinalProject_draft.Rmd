@@ -1,0 +1,116 @@
+---
+title: "JHU Practical Machine Learning Course Project"
+author: "ES"
+date: "Saturday, March 21, 2015"
+output: html_document
+---
+
+#Problem Statement
+
+We are asked to predict the manner in which an barbell-curl exercise is performed, based on a training set of accelerometer data acquired while the exercise is performed in five different ways.  We are further asked to describe how our prediction model was built, how cross-validation was used, what expected out-of-sample error is, and why various choices were made in the analysis.  We will use our prediction model to predict classifications for 20 different test cases.
+
+We take as a guide to our analysis the "components of a predictor" as described in the "What is a Predictor" lecture of the course, namely:
+
+* Question
+* Input Data
+* Features
+* Algorithm
+* Parameters
+* Evaluation
+
+The <b>Question</b> is: Given a sample of accelerometer data for a single repetition of the barbell-curl exercise, in which of the five manners was the exercise performed?
+
+#Input Data and Features
+
+The training data provided comprises 19622 observations of 160 variables.  We tidy the data by:
+
+1. Removing records which are aggregates of other observations (since these aggregates will not be present in the test data and therefore cannot be used as features)
+```
+barbdata <- read.csv("c:/RDATA/Barbell/pml-training.csv")
+barbdata <- subset(barbdata, barbdata[, "new_window"] == "no")
+```
+
+2. Removing variables whose values are all NA or ""
+```
+barbdata[barbdata==""]<-NA
+barbdata <- barbdata[,colSums(is.na(barbdata)) != nrow(barbdata)]
+```
+3. Removing timestamp and other columns which intuitively should not have predictive value
+```
+barbdata <- barbdata[,-(1:7)]
+```
+Using the <b>caret</b> package, we split the training data into a training subset and a validation subset.
+
+```
+library(caret)
+inTrain <- createDataPartition(y=barbdata$classe, p=0.75, list=FALSE)
+training <- barbdata[inTrain,]
+validation <- barbdata[-inTrain,]
+```
+The training set has 14414 observations of 52 features.
+
+#Algorithm and Parameters
+
+We fit a random forest model to the training set.  Again using the <b>caret</b> package, 25-fold bootstrap resampling is performed by default, and an appropriate value for `mtry` is automatically chosen.
+
+```
+modRF <- train(classe~., method="rf", data=training)
+modRF
+
+```
+```
+Random Forest 
+
+14414 samples
+   52 predictor
+    5 classes: 'A', 'B', 'C', 'D', 'E' 
+
+No pre-processing
+Resampling: Bootstrapped (25 reps) 
+
+Summary of sample sizes: 14414, 14414, 14414, 14414, 14414, 14414, ... 
+
+Resampling results across tuning parameters:
+
+  mtry  Accuracy   Kappa      Accuracy SD  Kappa SD   
+   2    0.9894230  0.9866171  0.001501689  0.001903924
+  27    0.9889533  0.9860239  0.001698279  0.002150462
+  52    0.9811598  0.9761625  0.004459787  0.005653016
+
+Accuracy was used to select the optimal model using  the largest value.
+The final value used for the model was mtry = 2.
+```
+
+#Evaluation
+
+We use our model to make predictions about our testing set, then generate a confusion matrix to generate error estimates for the validation set.
+
+```
+pred <- predict(modRF, validation)
+confusionMatrix(pred, validation$classe)
+```
+```
+          Reference
+Prediction    A    B    C    D    E
+         A 1366    7    0    0    0
+         B    1  919    3    0    0
+         C    0    3  835   16    0
+         D    0    0    0  769    2
+         E    0    0    0    1  880
+         
+Accuracy : 0.9931
+```
+We expect out-of-sample accuracy to have an upper bound of about .99.  When the model is applied to the out-of-sample test set, our predictions are correct on 20 out of 20 samples (100%).  We conclude that our Random Forest model is an exceptionally good predictor of the manner in which the barbell-curl exercise was performed.
+
+
+#Notes on Methodology
+
+We chose the Random Forest model for prediction because of its high performance on problems of this type.  One potential downside of the Random Forest could have been long run times for training the model.  On an Intel Core i7-5600U, the model trained in 75 minutes, which we consider acceptable.  With a slower processor, our choices of model and input features might have been different.  
+
+Specifically, we could have reduced the dimensionality of our input features by either preprocessing the data with PCA, or by removing or collapsing highly correlated features, of which there are several.  We could also have chosen another promising model, such as knn clustering or CART.
+
+By choosing a Random Forest model, we may have chosen the "nuclear option" when a simpler, more lightweight approach would have performed equally well.  If training time or processor specifications had been constraints on the problem, we may have made other choices.  Likewise, if interpretability of the model were a requirement, we would have chosen a more transparent model.
+
+
+
+
